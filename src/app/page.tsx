@@ -25,6 +25,26 @@ export default function Home() {
       const res = await fetch("/api/analyze", { method: "POST", body: JSON.stringify({ text, options: { policyMode } }), headers: { "Content-Type": "application/json" } });
       const json = await res.json();
       setResult(json);
+
+      // Persist analysis to DB (best-effort)
+      try {
+        const token = typeof window !== "undefined" ? localStorage.getItem("bearer_token") : null;
+        await fetch("/api/analyses", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            input: text,
+            options: { policyMode },
+            commit,
+            buildTime,
+            result: json,
+            source: "manual",
+          }),
+        });
+      } catch {}
     } finally {
       setLoading(false);
     }
@@ -41,6 +61,23 @@ export default function Home() {
     const json = await res.json();
     const alerts = json.results.flatMap((r: any) => r.alerts || []).length;
     setBatchInfo({ count: json.count || 0, alerts });
+
+    // Persist batch summary (best-effort)
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("bearer_token") : null;
+      await fetch("/api/batches", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          itemCount: json.count || items.length,
+          alertCount: alerts,
+          notes: "Batch demo from homepage",
+        }),
+      });
+    } catch {}
   }
 
   const riskColor = useMemo(() => {
